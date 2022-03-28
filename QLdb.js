@@ -15,6 +15,45 @@ class QLdb {
 		}
 	}
 
+	collections() {
+		return Object.keys(this.db.collections);
+	}
+
+	collectionInfo(collectionName) {
+		let collection = this.db.collections[collectionName];
+
+		// If collection exists
+		if (collection) {
+			return {
+				name: collectionName,
+				createdAt: collection.createdAt,
+				updatedAt: collection.updatedAt,
+				documentCount: collection.documents.length,
+				template: collection.template,
+			};
+		} else {
+			console.error(`Collection "${collectionName}" does not exists.`);
+		}
+	}
+
+	deleteCollection(collectionName) {
+		this.updateRaw((db) => {
+			let collection = db.collections[collectionName];
+
+			// If collection exists
+			if (collection) {
+				delete db.collections[collectionName];
+				return db;
+			} else {
+				console.error(`Collection "${collectionName}" does not exists.`);
+			}
+		});
+	}
+
+	destroy() {
+		localStorage.removeItem(this.dbName);
+	}
+
 	readRaw() {
 		return JSON.parse(localStorage.getItem(this.dbName));
 	}
@@ -103,35 +142,128 @@ class QLdb {
 		}
 	}
 
-	find(collectionName, conditions) {
+	find(collectionName, conditions = {}) {
 		let collection = this.db.collections[collectionName];
-		let matching = [];
 
 		// If collection exists
 		if (collection) {
-			for (let i = 0; i < Object.keys(collection.documents).length; i++) {
-				for (let j = 0; j < Object.keys(conditions).length; j++) {
-					let curMatch = true;
+			// If no condition
+			if (Object.keys(conditions).length == 0) {
+				return collection.documents;
+			} else {
+				return collection.documents.filter((doc) => {
+					let returnVal = true;
 
-					if (
-						collection.records[i][Object.keys(conditions)[j]] ==
-							property[Object.keys(conditions)[j]] &&
-						curMatch == true
-					) {
-						curMatch = true;
-					} else {
-						curMatch = false;
+					Object.keys(conditions).forEach((cond) => {
+						if (doc[cond] !== conditions[cond]) {
+							returnVal = false;
+						}
+					});
+
+					if (returnVal) {
+						return doc;
 					}
-
-					if (j == Object.keys(conditions).length - 1 && curMatch == true) {
-						matching[i] = collection.records[i];
-					}
-				}
-			} // end for
-
-			return matching;
+				});
+			}
 		} else {
 			console.error(`Collection "${collectionName}" does not exists.`);
 		}
+	}
+
+	updateId(collectionName, id, updateValues) {
+		this.updateRaw((db) => {
+			let collection = db.collections[collectionName];
+
+			// If collection exists
+			if (collection) {
+				db[collectionName] = collection.documents.map((doc) => {
+					if (doc._id === id) {
+						Object.keys(updateValues).forEach((key) => {
+							doc[key] = updateValues[key];
+						});
+					}
+					return doc;
+				});
+
+				return db;
+			} else {
+				console.error(`Collection "${collectionName}" does not exists.`);
+			}
+		});
+	}
+
+	update(collectionName, conditions, updateValues) {
+		this.updateRaw((db) => {
+			let collection = db.collections[collectionName];
+
+			// If collection exists
+			if (collection) {
+				db[collectionName] = collection.documents.map((doc) => {
+					let match = true;
+
+					// Check if conditions match record
+					Object.keys(conditions).forEach((cond) => {
+						if (doc[cond] !== conditions[cond]) {
+							match = false;
+						}
+					});
+
+					if (match) {
+						Object.keys(updateValues).forEach((key) => {
+							doc[key] = updateValues[key];
+						});
+					}
+					return doc;
+				});
+				return db;
+			} else {
+				console.error(`Collection "${collectionName}" does not exists.`);
+			}
+		});
+	}
+
+	deleteId(collectionName, id) {
+		this.updateRaw((db) => {
+			let collection = db.collections[collectionName];
+			// If collection exists
+			if (collection) {
+				db[collectionName] = collection.documents.filter((doc) => {
+					if (doc._id !== id) {
+						return doc;
+					}
+				});
+				return db;
+			} else {
+				console.error(`Collection "${collectionName}" does not exists.`);
+			}
+		});
+	}
+
+	delete(collectionName, conditions = {}) {
+		this.updateRaw((db) => {
+			let collection = db.collections[collectionName];
+
+			// If collection exists
+			if (collection) {
+				db[collectionName] = collection.documents.filter((doc) => {
+					let match = true;
+
+					// Check if conditions match record
+					Object.keys(conditions).forEach((cond) => {
+						if (doc[cond] !== conditions[cond]) {
+							match = false;
+						}
+					});
+
+					// if match exists
+					if (match) {
+						return doc;
+					}
+				});
+				return db;
+			} else {
+				console.error(`Collection "${collectionName}" does not exists.`);
+			}
+		});
 	}
 }
